@@ -15,6 +15,7 @@ from train import finetune, evaluate, pretrain, supervised
 from datasets import get_dataloaders
 from utils import experiment_config, print_network, init_weights
 import model.network as models
+from model.resnet import ResNet, BasicBlock, Identity
 
 
 warnings.filterwarnings("ignore")
@@ -144,8 +145,9 @@ def main():
     if any(args.model in model_name for model_name in model_names):
 
         # Load model
-        base_encoder = getattr(models, args.model)(
-            args, num_classes=args.n_classes)  # Encoder
+        # base_encoder = getattr(models, args.model)(
+        #     args, num_classes=args.n_classes)  # Encoder
+        base_encoder = ResNet(block=BasicBlock, num_blocks=[2, 2, 2, 2], num_classes=args.n_classes) # Resnet 18
 
         proj_head = models.projection_MLP(args)
         sup_head = models.Sup_Head(args)
@@ -154,7 +156,9 @@ def main():
         raise NotImplementedError("Model Not Implemented: {}".format(args.model))
 
     # Remove last FC layer from resnet
-    base_encoder.fc = nn.Sequential()
+    # base_encoder.fc = nn.Sequential()
+    base_encoder.linear = Identity()
+
 
     # Place model onto GPU(s)
     if args.distributed:
