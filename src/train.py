@@ -15,6 +15,62 @@ from model.losses import SimclrCriterion
 from optimisers import get_optimiser
 
 
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from sklearn.metrics.cluster import normalized_mutual_info_score as nmi_score
+from sklearn.metrics import adjusted_rand_score as ari_score
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+from dataloader.cifarloader import CIFAR10Loader, CIFAR100Loader
+
+from scipy.optimize import linear_sum_assignment
+
+def cluster_acc(y_true, y_pred):
+    """
+    Calculate clustering accuracy. Require scikit-learn installed
+
+    # Arguments
+        y: true labels, numpy.array with shape `(n_samples,)`
+        y_pred: predicted labels, numpy.array with shape `(n_samples,)`
+
+    # Return
+        accuracy, in [0,1]
+    """
+    y_true = y_true.astype(np.int64)
+    assert y_pred.size == y_true.size
+    D = max(y_pred.max(), y_true.max()) + 1
+    w = np.zeros((D, D), dtype=np.int64)
+    for i in range(y_pred.size):
+        w[y_pred[i], y_true[i]] += 1
+    row_ind, col_ind = linear_sum_assignment(w.max() - w)
+    return sum([w[i, j] for i, j in zip(row_ind, col_ind)])  * 1.0 / y_pred.size
+
+
+def calculate_metrics(model, test_loader, device, args):
+    torch.manual_seed(1)
+    model = model.to(device)
+    model.eval()
+    targets = np.array([])
+    outputs = np.zeros((len(test_loader.dataset), 512 )) 
+    
+    for batch_idx, (x, label, idx) in enumerate(tqdm(test_loader)):
+        x, label = x.to(device), label.to(device)
+        _, output = model(x)
+       
+        outputs[idx, :] = output.cpu().detach().numpy()
+        targets = np.append(targets, label.cpu().numpy())
+
+
+    pca = PCA(n_components=20) # PCA for dimensionality reduction PCA: 512 -> 20
+    pca_features = pca.fit_transform(outputs) # fit the PCA model and transform the features
+    kmeans = KMeans(n_clusters=args.n_unlabeled_classes, n_init=20)  # KMeans clustering
+    y_pred = kmeans.fit_predict(pca_features)
+
+    acc, nmi, ari = cluster_acc(targets, y_pred), nmi_score(targets, y_pred), ari_score(targets, y_pred)
+
+    return acc, nmi, ari
+
+
 def pretrain(encoder, mlp, dataloaders, args):
     ''' Pretrain script - SimCLR
 
@@ -48,6 +104,29 @@ def pretrain(encoder, mlp, dataloaders, args):
     args.writer = SummaryWriter(args.summaries_dir)
     best_valid_loss = np.inf
     patience_counter = 0
+
+    '''loading unlabeled datas to check cluster quality and tsne plot'''
+    if args.dataset == 'cifar10':
+        dloader_unlabeled_test = CIFAR10Loader(
+            root='./data', 
+            batch_size=128, 
+            split='train', 
+            aug=None, 
+            shuffle=False, 
+            target_list = range(5, 10))
+        
+        args.n_unlabeled_classes = 5
+
+    elif args.dataset == 'cifar100':
+        dloader_unlabeled_test = CIFAR100Loader(
+            root='./data', 
+            batch_size=128, 
+            split='train', 
+            aug=None, 
+            shuffle=False, 
+            target_list = range(80, 100))
+        
+        args.n_unlabeled_classes = 20
 
     ''' Pretrain loop '''
     for epoch in range(args.n_epochs):
@@ -119,6 +198,11 @@ def pretrain(encoder, mlp, dataloaders, args):
 
             args.writer.add_scalars('epoch_loss', {'pretrain': epoch_pretrain_loss}, epoch+1)
             args.writer.add_scalars('lr', {'pretrain': optimiser.param_groups[0]['lr']}, epoch+1)
+
+            acc, nmi, ari = calculate_metrics(encoder, dloader_unlabeled_test, args.device, args)
+
+            print(f'Epoch-{epoch+1}: ACC = {acc} , NMI = {nmi}, ARI = {ari} ')
+            print("-------------------------------------")
 
         state = {
             #'args': args,
