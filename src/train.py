@@ -199,10 +199,10 @@ def pretrain(encoder, mlp, dataloaders, args):
             args.writer.add_scalars('epoch_loss', {'pretrain': epoch_pretrain_loss}, epoch+1)
             args.writer.add_scalars('lr', {'pretrain': optimiser.param_groups[0]['lr']}, epoch+1)
 
-            acc, nmi, ari = calculate_metrics(encoder, dloader_unlabeled_test, args.device, args)
+            # acc, nmi, ari = calculate_metrics(encoder, dloader_unlabeled_test, args.device, args)
 
-            print(f'Epoch-{epoch+1}: ACC = {acc} , NMI = {nmi}, ARI = {ari} ')
-            print("-------------------------------------")
+            # print(f'Epoch-{epoch+1}: ACC = {acc} , NMI = {nmi}, ARI = {ari} ')
+            # print("-------------------------------------")
 
         state = {
             #'args': args,
@@ -233,7 +233,16 @@ def pretrain(encoder, mlp, dataloaders, args):
 
         epoch_pretrain_loss = None  # reset loss
 
+
+    acc, nmi, ari = calculate_metrics(encoder, dloader_unlabeled_test, args.device, args)
+
+    print(f'Epoch-{epoch+1}: ACC = {acc} , NMI = {nmi}, ARI = {ari} ')
+    print("-------------------------------------")
+
+
     del state
+
+
 
     torch.cuda.empty_cache()
 
