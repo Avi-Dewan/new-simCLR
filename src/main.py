@@ -130,6 +130,8 @@ def main():
     # Setup Distributed Training
     device, local_rank = setup(distributed=args.distributed)
 
+    args.device = device
+
     # Get Dataloaders for Dataset of choice
     dataloaders, args = get_dataloaders(args)
 
