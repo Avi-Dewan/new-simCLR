@@ -79,9 +79,9 @@ def pretrain(encoder, mlp, dataloaders, args):
             x_i, x_j = torch.split(inputs, [3, 3], dim=1)
 
             # Get the encoder representation
-            h_i = encoder(x_i)
+            _, h_i = encoder(x_i)
 
-            h_j = encoder(x_j)
+            _, h_j = encoder(x_j)
 
             # Get the nonlinear transformation of the representation
             z_i = mlp(h_i)
@@ -220,7 +220,7 @@ def supervised(encoder, mlp, dataloaders, args):
             # Forward pass
             optimiser.zero_grad()
 
-            h = encoder(inputs)
+            _, h = encoder(inputs)
 
             # Take pretrained encoder representations
             output = mlp(h)
@@ -372,7 +372,7 @@ def finetune(encoder, mlp, dataloaders, args):
 
             # Do not compute the gradients for the frozen encoder
             with torch.no_grad():
-                h = encoder(inputs)
+                _, h = encoder(inputs)
 
             # Take pretrained encoder representations
             output = mlp(h)
@@ -512,7 +512,7 @@ def evaluate(encoder, mlp, dataloaders, mode, epoch, args):
 
         # Forward pass
 
-        h = encoder(inputs)
+        _, h = encoder(inputs)
 
         output = mlp(h)
 
